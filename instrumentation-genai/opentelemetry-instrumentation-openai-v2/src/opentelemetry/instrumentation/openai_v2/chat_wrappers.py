@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Any, Optional
 
 from openai import AsyncStream, Stream
 from openai.types.chat import ChatCompletionChunk
@@ -37,6 +37,22 @@ class _ChatStreamMixin:
     _self_service_tier: Optional[str]
     _self_prompt_tokens: Optional[int]
     _self_completion_tokens: Optional[int]
+    _self_raw_headers: Optional[Any]
+
+    @property
+    def headers(self) -> Optional[Any]:
+        """HTTP response headers from the original LegacyAPIResponse.
+
+        When ``with_raw_response`` is used the OpenAI SDK returns a
+        ``LegacyAPIResponse`` whose ``.parse()`` call produces an
+        ``AsyncStream`` / ``Stream``.  Those stream types do *not* expose
+        ``.headers`` themselves, so the base ``ObjectProxy.__getattr__``
+        proxy cannot satisfy ``raw_response.headers`` calls made by callers
+        such as LiteLLM.  The headers are captured from the
+        ``LegacyAPIResponse`` before ``.parse()`` is called and stored here
+        so that they remain accessible after wrapping.
+        """
+        return self._self_raw_headers
 
     def _set_response_model(self, chunk: ChatCompletionChunk) -> None:
         if self._self_response_model:
@@ -181,6 +197,7 @@ class ChatStreamWrapper(
         stream: Stream[ChatCompletionChunk],
         invocation: InferenceInvocation,
         capture_content: bool,
+        raw_headers: Optional[Any] = None,
     ) -> None:
         super().__init__(stream)
         self._self_invocation = invocation
@@ -191,6 +208,7 @@ class ChatStreamWrapper(
         self._self_service_tier = None
         self._self_prompt_tokens = None
         self._self_completion_tokens = None
+        self._self_raw_headers = raw_headers
 
 
 class AsyncChatStreamWrapper(
@@ -202,6 +220,7 @@ class AsyncChatStreamWrapper(
         stream: AsyncStream[ChatCompletionChunk],
         invocation: InferenceInvocation,
         capture_content: bool,
+        raw_headers: Optional[Any] = None,
     ) -> None:
         super().__init__(stream)
         self._self_invocation = invocation
@@ -212,6 +231,7 @@ class AsyncChatStreamWrapper(
         self._self_service_tier = None
         self._self_prompt_tokens = None
         self._self_completion_tokens = None
+        self._self_raw_headers = raw_headers
 
 
 __all__ = [

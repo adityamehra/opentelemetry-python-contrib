@@ -121,13 +121,19 @@ def chat_completions_create_v_new(
         try:
             result = wrapped(*args, **kwargs)
             if hasattr(result, "parse"):
-                # result is of type LegacyAPIResponse, call parse to get the actual response
+                # result is of type LegacyAPIResponse; capture its headers
+                # *before* calling .parse() — the parsed AsyncStream/Stream
+                # does not expose .headers, so callers that access
+                # raw_response.headers (e.g. LiteLLM) would receive an
+                # AttributeError without this capture.
+                raw_headers = getattr(result, "headers", None)
                 parsed_result = result.parse()
             else:
+                raw_headers = None
                 parsed_result = result
             if is_streaming(kwargs):
                 return ChatStreamWrapper(
-                    parsed_result, chat_invocation, capture_content
+                    parsed_result, chat_invocation, capture_content, raw_headers
                 )
 
             _set_response_properties(
@@ -222,13 +228,19 @@ def async_chat_completions_create_v_new(
         try:
             result = await wrapped(*args, **kwargs)
             if hasattr(result, "parse"):
-                # result is of type LegacyAPIResponse, calling parse to get the actual response
+                # result is of type LegacyAPIResponse; capture its headers
+                # *before* calling .parse() — the parsed AsyncStream/Stream
+                # does not expose .headers, so callers that access
+                # raw_response.headers (e.g. LiteLLM) would receive an
+                # AttributeError without this capture.
+                raw_headers = getattr(result, "headers", None)
                 parsed_result = result.parse()
             else:
+                raw_headers = None
                 parsed_result = result
             if is_streaming(kwargs):
                 return AsyncChatStreamWrapper(
-                    parsed_result, chat_invocation, capture_content
+                    parsed_result, chat_invocation, capture_content, raw_headers
                 )
 
             _set_response_properties(

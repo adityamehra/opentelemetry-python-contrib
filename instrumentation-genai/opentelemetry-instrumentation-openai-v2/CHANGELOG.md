@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Fix `AttributeError: 'ChatStreamWrapper' object has no attribute 'headers'` when using
+  `with_raw_response.create(stream=True)` with libraries such as LiteLLM that access
+  `raw_response.headers` on the returned wrapper.  The OpenAI SDK returns a
+  `LegacyAPIResponse` (which carries `.headers`) when `with_raw_response` is used; the
+  instrumentation called `.parse()` on it to obtain the underlying `AsyncStream`/`Stream`
+  before wrapping, silently discarding the headers.  Because `AsyncStream`/`Stream` do not
+  expose `.headers`, the `ObjectProxy` attribute forwarding in `ChatStreamWrapper` and
+  `AsyncChatStreamWrapper` could not satisfy the attribute lookup.  The fix captures the
+  headers from `LegacyAPIResponse` *before* calling `.parse()` and stores them on the
+  wrapper so that `raw_response.headers` works correctly after instrumentation.
+  ([#4606](https://github.com/open-telemetry/opentelemetry-python-contrib/issues/4606))
 - Refactor chat completion stream wrappers to use shared GenAI stream lifecycle helpers.
   ([#4500](https://github.com/open-telemetry/opentelemetry-python-contrib/pull/4500))
 - Pass tool definitions from `tools` kwarg to `InferenceInvocation.tool_definitions`
