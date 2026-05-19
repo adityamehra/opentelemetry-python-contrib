@@ -72,13 +72,16 @@ def chat_completions_create_v_old(
             try:
                 result = wrapped(*args, **kwargs)
                 if hasattr(result, "parse"):
-                    # result is of type LegacyAPIResponse, call parse to get the actual response
+                    # result is of type LegacyAPIResponse; capture headers before
+                    # .parse() discards them (Stream/AsyncStream have no .headers)
+                    raw_headers = getattr(result, "headers", None)
                     parsed_result = result.parse()
                 else:
+                    raw_headers = None
                     parsed_result = result
                 if is_streaming(kwargs):
                     return LegacyChatStreamWrapper(
-                        parsed_result, span, logger, capture_content
+                        parsed_result, span, logger, capture_content, raw_headers
                     )
 
                 if span.is_recording():
@@ -179,13 +182,16 @@ def async_chat_completions_create_v_old(
             try:
                 result = await wrapped(*args, **kwargs)
                 if hasattr(result, "parse"):
-                    # result is of type LegacyAPIResponse, calling parse to get the actual response
+                    # result is of type LegacyAPIResponse; capture headers before
+                    # .parse() discards them (Stream/AsyncStream have no .headers)
+                    raw_headers = getattr(result, "headers", None)
                     parsed_result = result.parse()
                 else:
+                    raw_headers = None
                     parsed_result = result
                 if is_streaming(kwargs):
                     return LegacyChatStreamWrapper(
-                        parsed_result, span, logger, capture_content
+                        parsed_result, span, logger, capture_content, raw_headers
                     )
 
                 if span.is_recording():
@@ -579,8 +585,10 @@ class BaseStreamWrapper:
         self,
         stream: Stream,
         capture_content: bool,
+        raw_headers: Any = None,
     ):
         self.stream = stream
+        self.headers = raw_headers
         self.choice_buffers = []
         self._started = False
         self.capture_content = capture_content
@@ -730,8 +738,9 @@ class LegacyChatStreamWrapper(BaseStreamWrapper):
         span: Span,
         logger: Logger,
         capture_content: bool,
+        raw_headers: Any = None,
     ):
-        super().__init__(stream, capture_content=capture_content)
+        super().__init__(stream, capture_content=capture_content, raw_headers=raw_headers)
         self.span = span
         self.logger = logger
 

@@ -619,6 +619,35 @@ def test_chat_completion_with_raw_response_streaming(
         )
 
 
+def test_chat_completion_with_raw_response_streaming_headers_accessible(
+    span_exporter, openai_client, instrument_with_content, vcr
+):
+    """Regression test for #4606.
+
+    When ``with_raw_response.create(stream=True)`` is used the instrumentation
+    must preserve the HTTP response headers that the OpenAI SDK attaches to the
+    ``LegacyAPIResponse``.  Callers such as LiteLLM access ``raw_response.headers``
+    before calling ``raw_response.parse()``; without this fix they receive an
+    ``AttributeError`` because the underlying ``Stream`` object has no ``.headers``.
+    """
+    with vcr.use_cassette(
+        "test_chat_completion_with_raw_response_streaming.yaml"
+    ):
+        raw_response = openai_client.chat.completions.with_raw_response.create(
+            messages=USER_ONLY_PROMPT,
+            model=DEFAULT_MODEL,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+
+    # Must be accessible before .parse() — this is exactly the LiteLLM call pattern
+    assert raw_response.headers is not None
+    # parse() must return the wrapper itself so the caller can iterate it
+    assert raw_response.parse() is raw_response
+    for _ in raw_response:
+        pass
+
+
 def test_chat_completion_tool_calls_with_content(
     span_exporter, log_exporter, openai_client, instrument_with_content, vcr
 ):
